@@ -1,0 +1,84 @@
+#目前存在的问题：点合并后未能继续运动，会直接停止；第一个偶数点处理有问题
+using Plots
+
+# 定义一个结构体来表示点
+struct Point
+    coords::Vector{Int}  # 多维坐标
+    i::Int               # 点的索引
+    j::Int               # 操作次数
+    k::Int               # 另一个标签
+    t::Int               # 是否合并，0为不合并，1为已合并
+end
+
+# 定义范围
+x_min = -5
+x_max = 5
+
+# 初始化点数组
+points = []
+for i in x_min:x_max
+    point = Point([2i, 0], i, 0, 0, 0)
+    push!(points, point)
+end
+
+# 初始化轨迹数组
+trajectories = [Point[] for _ in points]
+
+# 开始模拟过程（有 CFBM）
+num_steps = 30  # 模拟步数
+for step in 1:num_steps
+    # 创建一个字典来记录每个横坐标的点
+    x_coords_dict = Dict{Int, Vector{Int}}()
+    for (index, point) in enumerate(points)
+        if point.t == 0  # 只处理 t 不等于 1 的点
+            random_change = rand([-1, 1])
+            new_coords = copy(point.coords)
+            new_point = Point(new_coords, point.i, point.j + 1, point.k, point.t)
+            points[index] = new_point
+
+            # 记录轨迹
+            push!(trajectories[index], new_point)
+            new_coords[1] += random_change
+            new_coords[2] += 1
+            # 记录横坐标
+            if haskey(x_coords_dict, new_coords[1])
+                push!(x_coords_dict[new_coords[1]], index)
+            else
+                x_coords_dict[new_coords[1]] = [index]
+            end
+        end
+
+        # 检查是否有横坐标相同的点
+    for (x, indices) in x_coords_dict
+        if length(indices) > 1  # 如果有多个点的横坐标相同
+            # 合并这些点
+            merged_coords = points[indices[1]].coords
+            merged_point = Point(merged_coords, points[indices[1]].i, points[indices[1]].j, points[indices[1]].k, 1)
+            for index in indices
+                points[index] = merged_point
+                push!(trajectories[index], merged_point)
+            end
+        end
+    end
+    
+    end
+
+    
+end
+
+# 提取每个点的轨迹坐标
+x_trajectories = [getfield.(trajectory, :coords) for trajectory in trajectories]
+x_coords = [getindex.(x_traj, 1) for x_traj in x_trajectories]
+y_coords = [getindex.(x_traj, 2) for x_traj in x_trajectories]
+#x_coords1=[getindex.]
+#y_coords1=[getindex.]
+
+
+# 绘制每个点的轨迹
+plot()
+for (x, y) in zip(x_coords, y_coords)
+    plot!(x, y, label = "Point x_$(x[1] ÷ 2)")
+end
+title!("Trajectories of Points")
+xlabel!("x")
+ylabel!("y")
