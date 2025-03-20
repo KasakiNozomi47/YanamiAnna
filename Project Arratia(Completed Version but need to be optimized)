@@ -25,10 +25,10 @@ trajectories = [Point[] for _ in points]
 for (index,point) in enumerate(points)
     push!(trajectories[index],point)
 end
+
 # 开始模拟过程（有 CFBM）
 num_steps = 300  # 模拟步数
 for step in 1:num_steps
-    # 创建一个字典来记录每个横坐标的点
     x_coords_dict = Dict{Int, Vector{Int}}()
     new_points=[]
     for (index,point) in enumerate(points)
