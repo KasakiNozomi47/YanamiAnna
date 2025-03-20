@@ -1,0 +1,73 @@
+using Plots
+
+# 定义一个结构体来表示点
+struct Point
+    coords::Vector{Int}  # 多维坐标
+    i::Int               # 点的索引
+    j::Int               # 操作次数
+    k::Int               # 另一个标签
+    t::Int               # 是否合并，0为不合并，1为已合并
+end
+
+# 定义范围
+x_min = -50
+x_max = 50
+
+# 初始化点数组
+points = []
+for i in x_min:x_max
+    point = Point([2i, 0], i, 0, 0, 0)
+    push!(points, point)
+end
+
+# 初始化轨迹数组
+trajectories = [Point[] for _ in points]
+for (index,point) in enumerate(points)
+    push!(trajectories[index],point)
+end
+# 开始模拟过程（有 CFBM）
+num_steps = 300  # 模拟步数
+for step in 1:num_steps
+    # 创建一个字典来记录每个横坐标的点
+    x_coords_dict = Dict{Int, Vector{Int}}()
+    new_points=[]
+    for (index,point) in enumerate(points)
+        if point.t == 0
+            random_change = rand([-1, 1])
+            new_coords = copy(point.coords)
+            new_point = Point(new_coords, point.i, point.j + 1, point.k, point.t)
+            points[index] = new_point
+            push!(trajectories[index], new_point)
+            new_coords[1] += random_change
+            new_coords[2] += 1
+           #Desire to delete one of the overlaping points
+            for m in 1:x_max-x_min+1
+                for n in m+1:x_max-x_min+1
+                    point_m=points[m]
+                    point_n=points[n]
+                    if point_m.coords == point_n.coords
+                       point_n= Point(point_n.coords, point_n.i, point_n.j + 1, point_n.k, 1)
+                       points[n]=point_n
+                    end
+                end
+            end
+         end
+    end
+end
+
+# 提取每个点的轨迹坐标
+x_trajectories = [getfield.(trajectory, :coords) for trajectory in trajectories]
+x_coords = [getindex.(x_traj, 1) for x_traj in x_trajectories]
+y_coords = [getindex.(x_traj, 2) for x_traj in x_trajectories]
+#x_coords1=[getindex.]
+#y_coords1=[getindex.]
+
+
+# 绘制每个点的轨迹
+plot(legend=false)
+for (x, y) in zip(x_coords, y_coords)
+    plot!(x, y, label = (x[1] ÷ 2))
+end
+title!("Project Arratia")
+xlabel!("")
+ylabel!("")
