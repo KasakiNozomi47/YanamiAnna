@@ -1,0 +1,64 @@
+# 定义参数
+H = 1/3  #KPZ phenomenon给定的为H=1/3时刻的情况
+a = rand()  # a为0-1之间的随机数
+
+function cdf(n)
+    1-(n+1)^(-a)
+end
+# 定义反函数g(η)
+function g(η)
+    return (1 - η) ^ (-1 / a)-1
+end
+
+# 初始化字典
+sequence = Dict()
+
+# 生成100个η值，计算对应的g(η)，并保存到字典中
+for i in 1:100
+    η = rand()  # 生成一个0-1之间的随机数
+    result = ceil(g(η))  # 计算并向上取整
+    sequence[i] = result  # 将序号i作为键，result作为值
+end
+
+# 输出字典
+println(a)
+println(sequence)
+println(sequence[97]) # 简单检验一下
+
+# 绘图
+using StatsBase
+value_counts = countmap(collect(values(sequence)))
+
+# 提取统计结果的键和值
+count_keys = collect(keys(value_counts))
+count_values = collect(values(value_counts))
+
+# 绘制条形图
+using StatsBase
+value_counts = countmap(collect(values(sequence)))
+
+# 提取统计结果的键和值
+count_keys = collect(keys(value_counts))
+count_values = collect(values(value_counts))
+
+# 绘制条形图
+using StatsBase
+value_counts = countmap(collect(values(sequence)))
+
+# 提取统计结果的键和值
+count_keys = collect(keys(value_counts))
+count_values = collect(values(value_counts))
+
+# 绘制条形图
+using Plots
+bar(count_keys, count_values, 
+    xlabel="g()", 
+    ylabel="times", 
+    title="statistics",
+    label="",
+    legend=:topleft,
+    grid=true,
+    xlims=(0,1000))
+
+# 显示图形
+display(plot!())
