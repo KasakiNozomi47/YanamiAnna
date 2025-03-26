@@ -71,3 +71,74 @@ end
 title!("Project Arratia")
 xlabel!("")
 ylabel!("")
+
+
+
+
+
+#then here comes a optimized version:
+#优化后的代码
+using Plots
+
+# 定义一个结构体来表示点
+struct Point
+    coords::Vector{Int}  # 多维坐标
+    i::Int               # 点的索引
+    j::Int               # 操作次数
+    k::Int               # 质量，起初都为1，合并后+1
+    t::Int               # 是否合并，0为不合并，1为已合并
+end
+
+# 定义范围
+x_min = -250
+x_max = 250
+
+# 初始化点数组
+points = [Point([2i, 0], i, 0, 1, 0) for i in x_min:x_max]
+
+# 初始化轨迹数组
+trajectories = [Point[] for _ in points]
+for (index, point) in enumerate(points)
+    push!(trajectories[index], point)
+end
+
+# 开始模拟过程（有 CFBM）
+num_steps = 1000  # 模拟步数
+for step in 1:num_steps
+    for (index, point) in enumerate(points)
+        if point.t == 0
+            random_change = rand([-1, 1])
+            new_coords = copy(point.coords)
+            new_coords[1] += random_change
+            new_coords[2] += 1
+            new_point = Point(new_coords, point.i, point.j + 1, point.k + 1, 0)
+            points[index] = new_point
+            push!(trajectories[index], new_point)
+            
+            # 处理重叠点
+            for m in 1:length(points)
+                if m != index && points[m].coords == new_point.coords
+                    points[m] = Point(points[m].coords, points[m].i, points[m].j + 1, points[m].k + 1, 1)
+                end
+            end
+        end
+    end
+end
+
+# 提取每个点的轨迹坐标
+x_trajectories = [getfield.(trajectory, :coords) for trajectory in trajectories]
+x_coords = [getindex.(x_traj, 1) for x_traj in x_trajectories]
+y_coords = [getindex.(x_traj, 2) for x_traj in x_trajectories]
+
+# 绘制每个点的轨迹
+plot(legend=false)
+for (x, y) in zip(x_coords, y_coords)
+    plot!(x, y, label = (x[1] ÷ 2))
+end
+title!("Project Arratia")
+xlabel!("")
+ylabel!("")
+
+# 显示图形
+display(plot)
+#目前想构造一个dictionary来记录每个点的左右运动历史，如+1，-1，-1，-1，+1……，以此来完成后面的去Markov property的过程
