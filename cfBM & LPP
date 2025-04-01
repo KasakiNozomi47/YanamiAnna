@@ -1,0 +1,192 @@
+# 定义参数序列ηk
+H = 1/3  #KPZ phenomenon给定的为H=1/3时刻的情况
+a = rand()  # a为0-1之间的随机数
+
+function cdf(n)
+    1-(n+1)^(-a)
+end
+# 定义反函数g(η)
+function g(η)
+    return (1 - η) ^ (-1 / a)-1
+end
+
+# 初始化字典
+sequence = Dict()
+
+# 生成100个η值，计算对应的g(η)，并保存到字典中
+for i in 1:100
+    η = rand()  # 生成一个0-1之间的随机数
+    result = ceil(g(η))  # 计算并向上取整
+    sequence[i] = result  # 将序号i作为键，result作为值
+end
+
+# 输出字典
+println(a)
+println(sequence)
+println(sequence[97]) # 简单检验一下
+
+# 绘图
+using StatsBase
+value_counts = countmap(collect(values(sequence)))
+
+# 提取统计结果的键和值
+count_keys = collect(keys(value_counts))
+count_values = collect(values(value_counts))
+
+# 绘制条形图
+using StatsBase
+value_counts = countmap(collect(values(sequence)))
+
+# 提取统计结果的键和值
+count_keys = collect(keys(value_counts))
+count_values = collect(values(value_counts))
+
+# 绘制条形图
+using StatsBase
+value_counts = countmap(collect(values(sequence)))
+
+# 提取统计结果的键和值
+count_keys = collect(keys(value_counts))
+count_values = collect(values(value_counts))
+
+# 绘制条形图
+using Plots
+bar(count_keys, count_values, 
+    xlabel="g()", 
+    ylabel="times", 
+    title="statistics",
+    label="",
+    legend=:topleft,
+    grid=true,
+    xlims=(0,1000))
+
+# 显示图形
+display(plot!())
+
+
+# 定义参数序列ηk
+H = 1/3  #KPZ phenomenon给定的为H=1/3时刻的情况
+
+
+# 初始化字典
+# sequence = Dict()
+
+# 生成足够多个个η值，计算对应的g(η)，并保存到字典中
+#for i in 1:10000
+ #   η = rand()  # 生成一个0-1之间的随机数
+  #  result = ceil(g(η))  # 计算并向上取整
+   # sequence[i] = result  # 将序号i作为键，result作为值
+#end
+
+
+
+
+using Plots
+
+# 定义一个结构体来表示点
+struct Point
+    coords::Vector{Int}  # 多维坐标
+    i::Int               # 点的索引
+    j::Int               # 操作次数
+    k::Int               # 质量，起初都为1，合并后+1
+    t::Int               # 是否合并，0为不合并，1为已合并
+end
+
+# 定义范围
+x_min = -50
+x_max = 50
+
+# 初始化点数组
+points = [Point([2i, 0], i, 0, 1, 0) for i in x_min:x_max]
+
+# 初始化轨迹数组
+trajectories = [Point[] for _ in points]
+for (index, point) in enumerate(points)
+    push!(trajectories[index], point)
+end
+
+# 初始化移动历史
+mutable struct History
+    i::Int   # 点的索引，用来表示第几个点
+    j::Int   # 点走过的步数
+    t::Int   # 点是否还在运动，0表示还在运动，1表示不在运动
+    index::Vector{Int}
+end
+
+Histories = [History(i, 0, 0, []) for i in x_min:x_max]
+
+# 开始模拟过程（有 CFBM），目前考虑的情况是：若两个点合并，还是以1/2的概率分别取，与其质量无关
+num_steps = 100  # 模拟步数
+for step in 1:num_steps
+    for (index, point) in enumerate(points)
+        if  point.t == 0   
+            #定义每个步数的ηk
+            a = rand()  # a为0-1之间的随机数
+function cdf(n)
+    1-(n+1)^(-a)
+end
+# 定义反函数g(η)
+function g(η)
+    return (1 - η) ^ (-1 / a)-1
+end
+
+            random_change = rand([-1, 1])
+            new_coords = copy(point.coords)
+            new_coords[1] += random_change
+            new_coords[2] += 1
+            new_point = Point(new_coords, point.i, point.j + 1, point.k + 1, 0)
+            points[index] = new_point
+            push!(trajectories[index], new_point)
+            
+            # 推进history的记录
+            push!(Histories[index].index, random_change)
+            
+            # 处理重叠点
+            for m in 1:length(points)
+                if m != index && points[m].coords == new_point.coords
+                    points[m] = Point(points[m].coords, points[m].i, points[m].j + 1, points[m].k + 1, 1)
+                    
+                    # 更新停止运动的点的History
+                    Histories[m].t = 1
+                    # 填充0直到num_steps
+                    while length(Histories[m].index) < num_steps
+                        push!(Histories[m].index, 0)
+                    end
+                end
+            end
+        end
+    end
+end
+
+
+# 确保所有点的Histories[index].index长度等于num_steps
+for (index, history) in enumerate(Histories)
+    if length(history.index) < num_steps
+        while length(history.index) < num_steps
+            push!(history.index, 0)
+        end
+    end
+end
+
+# 输出所有的History记录
+println("History记录：")
+for (index, history) in enumerate(Histories)
+    println("点索引: $(history.i), 步数: $(history.j), 是否停止: $(history.t), 运动记录: $(history.index)")
+end
+
+# 提取每个点的轨迹坐标
+x_trajectories = [getfield.(trajectory, :coords) for trajectory in trajectories]
+x_coords = [getindex.(x_traj, 1) for x_traj in x_trajectories]
+y_coords = [getindex.(x_traj, 2) for x_traj in x_trajectories]
+
+# 绘制每个点的轨迹
+plot(legend=false)
+for (x, y) in zip(x_coords, y_coords)
+    plot!(x, y, label = (x[1] ÷ 2))
+end
+title!("Project Arratia")
+xlabel!("")
+ylabel!("")
+
+# 显示图形
+display(plot)
