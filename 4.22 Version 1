@@ -1,0 +1,331 @@
+#using Plots
+using HypothesisTests
+using Distributions
+
+# 定义一个结构体来表示点
+struct Point
+    coords::Vector{Int}  # 多维坐标
+    i::Int               # 点的索引
+    j::Int               # 操作次数
+    k::Int               # 质量，起初都为1，合并后相加
+    t::Int               # 是否合并，0为不合并，1为已合并
+end
+
+# 定义范围
+x_min = -1024
+x_max = 1024
+theta=1     #确定质量因子
+# 在循环外确定 a 的值  Hurst coefficient i.e. H=2/3
+a = 1/6
+H = 1/2 + a
+
+# 初始化存储所有模拟的横坐标差
+all_horizontal_differences = []
+
+# 循环50次模拟
+for sim in 1:50
+    # 初始化点数组
+    points = [Point([2i, 0], i, 0, 1, 0) for i in x_min:x_max]
+
+    # 初始化轨迹数组
+    trajectories = [Point[] for _ in points]
+    for (index, point) in enumerate(points)
+        push!(trajectories[index], point)
+    end
+
+    # 初始化移动历史
+    mutable struct History
+        i::Int   # 点的索引，用来表示第几个点
+        j::Int   # 点走过的步数
+        t::Int   # 点是否还在运动，0表示还在运动，1表示不在运动
+        index::Vector{Int}
+    end
+
+    Histories = [History(i, 0, 0, []) for i in x_min:x_max]
+
+    # 开始模拟过程（有 CFBM）
+    num_steps = 1024                   # 模拟步数
+    for step in 1:num_steps
+        for (index, point) in enumerate(points)
+            if point.t == 0
+                # 定义序列ηk，使得去Markov Property成立，即第k步与其k-ηk步所走的步数相同
+                function g(η)
+                    return (1 - η) ^ (-1 / a) - 1
+                end
+
+                η = rand()
+                result = g(η)
+
+                # 限制 result 的范围，确保其在 Int64 范围内
+                result = min(result, num_steps - 1)
+                result = ceil(Int, result)
+
+                # 检查是否满足 result < point.j
+                if result < point.j
+                    # 从历史记录中获取第 (point.j - result) 步的运动方向
+                    if length(Histories[index].index) >= (point.j - result + 1)
+                        random_change = Histories[index].index[point.j - result + 1]
+                    else
+                        # 如果历史记录不足，随机选择方向
+                        random_change = rand([-1, 1])
+                    end
+                else
+                    # 随机选择方向
+                    random_change = rand([-1, 1])
+                end
+
+                # 更新坐标
+                new_coords = copy(point.coords)
+                new_coords[1] += random_change
+                new_coords[2] += 1
+                new_point = Point(new_coords, point.i, point.j + 1, point.k, 0)
+                points[index] = new_point
+                push!(trajectories[index], new_point)
+
+                # 推进history的记录
+                push!(Histories[index].index, random_change)
+
+                # 处理重叠点
+                for m in 1:length(points)
+                    if m != index && points[m].coords == new_point.coords
+                        m1=points[m].k
+                        m2=points[index].k
+                        prob= m1^theta/(m1^theta+m2^theta)
+                        
+                        if rand()<prob
+                            points[m] = Point(points[m].coords, points[m].i, points[m].j + 1, m1 + m2, 0)
+                            point[index]= Point(points[m].coords, points[m].i, points[m].j + 1, m1 + m2, 1)
+                        
+                        # 更新停止运动的点的History
+                        Histories[index].t = 1
+                        else
+                            points[m] = Point(points[m].coords, points[m].i, points[m].j + 1, m1 + m2, 1)
+                            point[index]= Point(points[m].coords, points[m].i, points[m].j + 1, m1 + m2, 0)
+                        
+                        # 更新停止运动的点的History
+                        Histories[m].t = 1
+                        end
+
+                        if points[m].t == 1
+                            # 填充0直到num_steps
+                            while length(Histories[m].index) < num_steps
+                                  push!(Histories[m].index, 0)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    # 确保所有点的Histories[index].index长度等于num_steps
+    for (index, history) in enumerate(Histories)
+        if length(history.index) < num_steps
+            while length(history.index) < num_steps
+                push!(history.index, 0)
+            end
+        end
+    end
+
+    # 提取每个点的轨迹坐标
+    x_trajectories = [getfield.(trajectory, :coords) for trajectory in trajectories]
+    x_coords = [getindex.(x_traj, 1) for x_traj in x_trajectories]
+    y_coords = [getindex.(x_traj, 2) for x_traj in x_trajectories]
+
+    # 绘制每个点的轨迹
+#    plot(legend=false)
+#   for (x, y) in zip(x_coords, y_coords)
+#        plot!(x, y, label = (x[1] ÷ 2))
+#    end
+#    title!("Project Arratia - Simulation $sim")
+#    xlabel!("")
+#    ylabel!("")
+
+    # 显示图形
+#   display(plot)
+
+    # 定义最终的点序列
+    max_y = maximum(maximum(y) for y in y_coords)
+    top_points = []
+
+    for (index, traj) in enumerate(trajectories)
+        if !isempty(traj)
+            last_point = traj[end]
+            # 确保 last_point 在 x_min 到 x_max 区间内
+            if  -3*num_steps^0.5 <= last_point.coords[1] <= 3*num_steps^0.5 && last_point.coords[2] == max_y
+                push!(top_points, last_point.coords)
+            end
+        end
+    end
+
+    # 计算相邻点的横坐标差
+    horizontal_differences = []
+    if !isempty(top_points)
+        sorted_top_points = sort(top_points, by = x -> x[1])  # 按横坐标排序
+        for i in 1:length(sorted_top_points)-1
+            diff = sorted_top_points[i+1][1] - sorted_top_points[i][1]
+            push!(horizontal_differences, diff)
+        end
+    end
+
+    # 将本次模拟的横坐标差添加到全局数组中
+    push!(all_horizontal_differences, horizontal_differences)
+end
+
+# 将所有横坐标差合并成一个一维数组
+all_diffs = reduce(vcat, all_horizontal_differences)
+
+# 对合并后的数据进行正态性检验（Kolmogorov-Smirnov 检验）
+mean_diff = mean(all_diffs)
+std_diff = num_steps^(2/3)
+ks_test = OneSampleKSTest(all_diffs, Normal(mean_diff, std_diff))
+p_value = pvalue(ks_test)
+
+println("θ的值: $theta")
+println("行走的步数：$num_steps")
+println("合并后的横坐标差: $all_diffs")
+println("Kolmogorov-Smirnov 检验 p 值: $p_value")
+
+#######################################################################Things Below is useless######################################################################################
+# 绘制直方图和正态分布曲线
+#histogram(all_diffs, normalize=true, label="Histogram", bins=30)
+#plot!(Normal(mean_diff, std_diff), label="Normal Distribution", linestyle=:dash)
+#title!("Histogram and Normal Distribution")
+#xlabel!("Horizontal Differences")
+#ylabel!("Density")
+#display(plot!())
+
+# 绘制QQ图
+#qqplot(Normal(mean_diff, std_diff), all_diffs, label="QQ Plot")
+#title!("QQ Plot")
+#xlabel!("Theoretical Quantiles")
+#ylabel!("Sample Quantiles")
+#display(plot!())
+
+
+
+
+##########################################################################AI Version##################################################################################################
+using HypothesisTests
+using Distributions
+
+struct Point
+    coords::Vector{Int}
+    i::Int
+    j::Int
+    k::Int
+    t::Int
+end
+
+x_min = -1024
+x_max = 1024
+
+a = 1/6
+H = 1/2 + a
+theta = 1  # 定义合并参数
+
+num_steps = 1024
+all_horizontal_differences = []
+
+for sim in 1:50
+    points = [Point([2i, 0], i, 0, 1, 0) for i in x_min:x_max]
+    trajectories = [Point[] for _ in points]
+    for (idx, point) in enumerate(points)
+        push!(trajectories[idx], point)
+    end
+
+    mutable struct History
+        i::Int
+        j::Int
+        t::Int
+        index::Vector{Int}
+    end
+
+    Histories = [History(i, 0, 0, Int[]) for i in x_min:x_max]
+
+    for step in 1:num_steps
+        coord_dict = Dict{Vector{Int}, Vector{Int}}()
+        # 记录当前所有活跃点的坐标
+        for (idx, p) in enumerate(points)
+            if p.t == 0
+                if haskey(coord_dict, p.coords)
+                    push!(coord_dict[p.coords], idx)
+                else
+                    coord_dict[p.coords] = [idx]
+                end
+            end
+        end
+
+        for (index, point) in enumerate(points)
+            if point.t == 0
+                η = rand()
+                result = ceil(Int, (1 - η)^(-1/a) - 1)
+                result = min(result, num_steps - 1)
+
+                random_change = if result < point.j && result >= 0 && point.j - result <= length(Histories[index].index)
+                    Histories[index].index[point.j - result]
+                else
+                    rand([-1, 1])
+                end
+
+                new_coords = copy(point.coords)
+                new_coords[1] += random_change
+                new_coords[2] += 1
+                new_point = Point(new_coords, point.i, point.j + 1, point.k, 0)
+
+                # 检查新坐标是否与其他点碰撞
+                if haskey(coord_dict, new_coords)
+                    candidates = coord_dict[new_coords]
+                    for m in candidates
+                        m != index || continue  # 跳过自己
+                        p_m = points[m]
+                        if p_m.t == 0 && p_m.coords == new_coords
+                            m1 = p_m.k
+                            m2 = new_point.k
+                            prob = m1^theta / (m1^theta + m2^theta)
+                            if rand() < prob
+                                # 合并到m点，当前点停止
+                                points[m] = Point(new_coords, p_m.i, p_m.j + 1, m1 + m2, 0)
+                                new_point = Point(new_coords, new_point.i, new_point.j, m1 + m2, 1)
+                                Histories[index].t = 1
+                                # 填充历史记录
+                                while length(Histories[index].index) < num_steps
+                                    push!(Histories[index].index, 0)
+                                end
+                            else
+                                # 当前点存活，m点停止
+                                new_point = Point(new_coords, new_point.i, new_point.j, m1 + m2, 0)
+                                points[m] = Point(new_coords, p_m.i, p_m.j + 1, m1 + m2, 1)
+                                Histories[m].t = 1
+                                while length(Histories[m].index) < num_steps
+                                    push!(Histories[m].index, 0)
+                                end
+                            end
+                            break  # 处理一次碰撞
+                        end
+                    end
+                end
+
+                points[index] = new_point
+                push!(trajectories[index], new_point)
+                push!(Histories[index].index, random_change)
+            end
+        end
+    end
+
+    # 收集顶部点的横坐标差
+    max_y = maximum(p.coords[2] for p in points if p.t == 0)
+    top_points = [p.coords for p in points if p.t == 0 && p.coords[2] == max_y && abs(p.coords[1]) <= 3*num_steps^(2/3)]
+    sort!(top_points, by = x -> x[1])
+    diffs = diff([tp[1] for tp in top_points])
+    append!(all_horizontal_differences, diffs)
+end
+
+# 统计分析
+all_diffs = all_horizontal_differences
+mean_diff = mean(all_diffs)
+std_diff = num_steps^(2/3)  # 理论标准差
+ks_test = OneSampleKSTest(all_diffs, Normal(mean_diff, std_diff))
+p_value = pvalue(ks_test)
+
+println("Kolmogorov-Smirnov p-value: $p_value")
