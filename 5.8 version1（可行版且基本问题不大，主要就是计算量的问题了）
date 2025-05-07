@@ -1,0 +1,139 @@
+using HypothesisTests
+using Distributions
+
+struct Point
+    coords::Vector{Int}   # 点的坐标
+    i::Int           # 点的索引
+    j::Int           # 点的操作次数
+    k::Int           # 点的质量
+    t::Int           # 0 为可以移动，1 为不能移动
+end
+
+x_min = -1024
+x_max = 1024
+a = 1/6
+H = 1/2 + a          # Hurst Coefficient
+theta = 10            # 质量幂次参数
+all_horizontal_differences = []
+num_sims = 1
+num_steps = 4096
+
+for sim in 1:num_sims
+    points = [Point([2i, 0], i, 0, 1, 0) for i in x_min:x_max]
+    trajectories = [Point[] for _ in points]
+    for (index, point) in enumerate(points)
+        push!(trajectories[index], point)
+    end
+
+    mutable struct History
+        i::Int
+        j::Int
+        t::Int
+        index::Vector{Int}
+    end
+
+    Histories = [History(i, 0, 0, []) for i in x_min:x_max]
+
+    for step in 1:num_steps
+        for (index, point) in enumerate(points)
+            if point.t == 0
+                function g(η)
+                    return (1 - η) ^ (-1 / a) - 1
+                end
+
+                η = rand()
+                result = g(η)
+                result = min(result, num_steps - 1)
+                result = ceil(Int, result)
+
+                if result < point.j
+                    if length(Histories[index].index) >= (point.j - result + 1)
+                        random_change = Histories[index].index[point.j - result + 1]
+                    else
+                        random_change = rand([-1, 1])
+                    end
+                else
+                    random_change = rand([-1, 1])
+                end
+
+                new_coords = copy(point.coords)
+                new_coords[1] += random_change
+                new_coords[2] += 1
+                new_point = Point(new_coords, point.i, point.j + 1, point.k, 0)
+                points[index] = new_point
+                push!(trajectories[index], new_point)
+
+                push!(Histories[index].index, random_change)
+
+                for m in 1:length(points)
+                    if m != index && points[m].coords == new_point.coords
+                        m1 = points[index].k
+                        m2 = points[m].k
+                        prob = m1^theta / (m1^theta + m2^theta)
+                        if rand() < prob
+                            points[index] = Point(new_coords, points[index].i, points[index].j, m1 + m2, 0)
+                            points[m] = Point(points[m].coords, points[m].i, points[m].j, m1 + m2, 1)
+                            Histories[m].t = 1
+                            while length(Histories[m].index) < num_steps
+                                push!(Histories[m].index, 0)
+                            end
+                        else
+                            points[m] = Point(new_coords, points[m].i, points[m].j, m1 + m2, 0)
+                            points[index] = Point(points[index].coords, points[index].i, points[index].j, m1 + m2, 1)
+                            Histories[index].t = 1
+                            while length(Histories[index].index) < num_steps
+                                push!(Histories[index].index, 0)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    for (index, history) in enumerate(Histories)
+        if length(history.index) < num_steps
+            while length(history.index) < num_steps
+                push!(history.index, 0)
+            end
+        end
+    end
+
+    # 获取每个点的 x 和 y 坐标
+    x_trajectories = [getfield.(trajectory, :coords) for trajectory in trajectories]
+    x_coords = [getindex.(x_traj, 1) for x_traj in x_trajectories]
+    y_coords = [getindex.(x_traj, 2) for x_traj in x_trajectories]
+
+    max_y = maximum(maximum(y) for y in y_coords)
+    top_points = []
+    final_points_with_origins = []  # 用于存储最终到达最上方的点及其原始位置
+
+    for (index, traj) in enumerate(trajectories)
+        if !isempty(traj)
+            last_point = traj[end]
+            # if -3*num_steps^0.5 <= last_point.coords[1] <= 3*num_steps^0.5 && last_point.coords[2] == max_y
+                push!(top_points, last_point.coords)
+                # 记录最终点的原始位置（轨迹的第一个点）
+                origin_point = traj[1]
+                push!(final_points_with_origins, (last_point.coords, origin_point.coords))
+            # end
+        end
+    end
+    println("第$sim 次最终的点坐标及原始位置: $final_points_with_origins")
+
+    # 预处理每一次的横坐标的差的值并且记录下来
+    horizontal_differences = []
+    if !isempty(top_points)
+        sorted_top_points = sort(top_points, by = x -> x[1])
+        for i in 1:length(sorted_top_points)-1
+            diff = sorted_top_points[i+1][1] - sorted_top_points[i][1]
+            push!(horizontal_differences, diff)
+        end
+    end
+
+    push!(all_horizontal_differences, horizontal_differences)
+end
+
+for (sim, coords) in enumerate(final_points_with_origins)
+    println("第$sim 次循环最终到达最上方的点及其原始位置: $coords")
+end
